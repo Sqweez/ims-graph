@@ -348,6 +348,7 @@
       '.igc__radios{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:14px;line-height:1.4;}' +
       '.igc__radio{display:flex;gap:8px;align-items:center;color:' + COLORS.black + ';cursor:pointer;}' +
       '.igc__radio input{accent-color:' + COLORS.blue + ';}' +
+      '.igc svg text{-webkit-user-select:none;user-select:none;}' +
       '.igc__chart-wrap{background:transparent;}' +
       '.igc__summary{display:flex;gap:32px;flex-wrap:wrap;align-items:baseline;line-height:1.4;}' +
       '.igc__summary-label{font-size:16px;color:' + COLORS.darkGrey + ';line-height:1.4;}' +
@@ -479,7 +480,7 @@
       height: 420,
       paddingLeft: 66,
       paddingRight: 72,
-      paddingTop: 20,
+      paddingTop: 8,
       paddingBottom: 48,
       // Ось X всегда в годах.
       tMin: this.state.yearsMin,
@@ -911,8 +912,8 @@
     let axisRevenueExpense = createSvgEl('text');
     axisRevenueExpense.textContent = 'Revenue/Expense';
     setAttrs(axisRevenueExpense, {
-      x: this.chart.paddingLeft,
-      y: this.chart.paddingTop + 2,
+      x: this.chart.paddingLeft + 8,
+      y: 14,
       fill: COLORS.black,
       'font-size': 10,
       'font-weight': 700,

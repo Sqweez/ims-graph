@@ -31,6 +31,23 @@
     yearsMax: 9
   };
 
+  // Фиксированные максимумы оси Y в зависимости от активного unit.
+  const Y_MAX_BY_UNIT = {
+    week: 10000000,
+    month: 30000000,
+    quarter: 100000000,
+    year: 1000000000
+  };
+  const Y_HEADROOM_FACTOR = 1.08;
+
+  // Фиксированные тики оси Y (в display-единицах) под референсные скрины.
+  const Y_TICKS_BY_UNIT = {
+    week: [100, 300, 1000, 3000, 10000, 30000, 100000, 300000, 1000000, 3000000, 10000000],
+    month: [300, 1000, 3000, 10000, 30000, 100000, 300000, 1000000, 3000000, 10000000, 30000000],
+    quarter: [3000, 10000, 30000, 100000, 300000, 1000000, 3000000, 10000000, 30000000, 100000000],
+    year: [3000, 10000, 30000, 100000, 300000, 1000000, 3000000, 10000000, 30000000, 100000000, 300000000, 1000000000]
+  };
+
   /**
    * Возвращает, сколько недель в выбранной единице времени.
    * Нужен для конвертаций week <-> month/quarter/year.
@@ -326,23 +343,22 @@
     let style = document.createElement('style');
     style.id = 'igc-styles';
     style.textContent = '' +
-      '.igc{font-family:Inter,Segoe UI,Arial,sans-serif;color:' + COLORS.black + ';width:100%;}' +
+      '.igc{font-family:Inter,Segoe UI,Arial,sans-serif;color:' + COLORS.black + ';width:100%;display:flex;flex-direction:column;gap:32px;}' +
       '.igc *{box-sizing:border-box;}' +
-      '.igc__radios{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:20px;font-size:14px;}' +
+      '.igc__radios{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:14px;line-height:1.4;}' +
       '.igc__radio{display:flex;gap:8px;align-items:center;color:' + COLORS.black + ';cursor:pointer;}' +
       '.igc__radio input{accent-color:' + COLORS.blue + ';}' +
-      '.igc__chart-wrap{border-radius:8px;background:#fff;}' +
-      '.igc__summary{display:flex;gap:32px;flex-wrap:wrap;margin-top:16px;align-items:baseline;}' +
-      '.igc__summary-label{font-size:28px;color:' + COLORS.darkGrey + ';line-height:1.4;}' +
-      '.igc__summary-value{font-size:31px;font-weight:600;color:' + COLORS.black + ';line-height:1.4;margin-left:8px;}' +
-      '.igc__inputs{display:flex;gap:24px;flex-wrap:wrap;margin-top:20px;}' +
-      '.igc__field{min-width:220px;flex:1 1 220px;max-width:360px;}' +
+      '.igc__chart-wrap{background:transparent;}' +
+      '.igc__summary{display:flex;gap:32px;flex-wrap:wrap;align-items:baseline;line-height:1.4;}' +
+      '.igc__summary-label{font-size:16px;color:' + COLORS.darkGrey + ';line-height:1.4;}' +
+      '.igc__summary-value{font-size:18px;font-weight:600;color:' + COLORS.black + ';line-height:1.4;margin-left:8px;}' +
+      '.igc__inputs{display:flex;gap:24px;flex-wrap:wrap;}' +
+      '.igc__field{width:288px;flex:0 0 288px;}' +
       '.igc__field-label{font-size:12px;color:' + COLORS.darkGrey + ';line-height:1.4;margin-bottom:6px;display:block;}' +
       '.igc__input{width:100%;height:48px;border:1px solid ' + COLORS.grey + ';border-radius:4px;padding:10px 14px;font-size:16px;line-height:1.4;color:' + COLORS.black + ';}' +
       '.igc__input:focus{outline:2px solid rgba(14,100,224,.25);border-color:' + COLORS.blue + ';}' +
-      '.igc__hint{font-size:12px;color:' + COLORS.darkGrey + ';margin-top:8px;}' +
       '@media (max-width: 880px){' +
-      '.igc__summary-label{font-size:20px;}.igc__summary-value{font-size:24px;}.igc__field{max-width:none;}' +
+      '.igc{gap:24px;}.igc__summary-label{font-size:16px;}.igc__summary-value{font-size:18px;}.igc__field{width:100%;flex:1 1 100%;}' +
       '}';
 
     document.head.appendChild(style);
@@ -418,15 +434,10 @@
       '<div class="igc__field"><label class="igc__field-label">Fixed expenses</label><input class="igc__input" data-key="fixed" type="text" /></div>' +
       '<div class="igc__field"><label class="igc__field-label">Growth rate</label><input class="igc__input" data-key="growth" type="text" /></div>';
 
-    let hint = document.createElement('div');
-    hint.className = 'igc__hint';
-    hint.textContent = 'Drag handles on the chart or edit inputs.';
-
     root.appendChild(radios);
     root.appendChild(chartWrap);
     root.appendChild(summary);
     root.appendChild(inputs);
-    root.appendChild(hint);
 
     this.container.appendChild(root);
 
@@ -473,11 +484,9 @@
       // Ось X всегда в годах.
       tMin: this.state.yearsMin,
       tMax: this.state.yearsMax,
-      yMin: 1000 / WEEKS_PER_YEAR,
-      yMax: 1000000 / WEEKS_PER_YEAR,
-      ticksY: [],
-      // После первого расчета фиксируем масштаб, чтобы убрать "прыжки" оси при drag.
-      yDomainFrozen: false
+      yMin: flowToWeekly(Y_TICKS_BY_UNIT[this.state.units][0], this.state.units),
+      yMax: flowToWeekly(Y_MAX_BY_UNIT[this.state.units] || Y_MAX_BY_UNIT.year, this.state.units),
+      ticksY: []
     };
   };
 
@@ -732,55 +741,22 @@
   };
 
   /**
-   * Обновляет логарифмический диапазон Y и набор тиков.
+   * Обновляет фиксированный лог-диапазон Y и тики по активному unit.
    */
   _updateYDomain() {
-    let tMax = this.chart.tMax - this.chart.tMin;
-    let values = [
-      this._revenueAt(0),
-      this._revenueAt(tMax),
-      this._variableAt(0),
-      this._variableAt(tMax),
-      this.state.weeklyFixedExpenses,
-      this._totalAt(0),
-      this._totalAt(tMax),
-      1000 / WEEKS_PER_YEAR,
-      1000000 / WEEKS_PER_YEAR
-    ].filter(function (value) {
-      return isFiniteNumber(value) && value > 0;
-    });
-
-    let min = Math.min.apply(Math, values);
-    let max = Math.max.apply(Math, values);
-
-    let yMin = Math.max(1 / WEEKS_PER_YEAR, min * 0.7);
-    let yMax = Math.max(yMin * 10, max * 1.35);
-
-    if (!this.chart.yDomainFrozen) {
-      this.chart.yMin = yMin;
-      this.chart.yMax = yMax;
-      this.chart.yDomainFrozen = true;
-    } else {
-      // Keep the scale stable while dragging; expand only when data exceeds range.
-      this.chart.yMin = Math.min(this.chart.yMin, yMin);
-      this.chart.yMax = Math.max(this.chart.yMax, yMax);
-    }
-
     let displayUnit = this.state.units;
-    let displayMin = flowFromWeekly(this.chart.yMin, displayUnit);
-    let displayMax = flowFromWeekly(this.chart.yMax, displayUnit);
-    // Тики строим в display-единицах, чтобы подписи были человекочитаемыми.
-    let displayTicks = createOneThreeTicks(displayMin, displayMax, 8);
+    let displayTicks = Y_TICKS_BY_UNIT[displayUnit] || Y_TICKS_BY_UNIT.year;
+    let yMaxDisplay = Y_MAX_BY_UNIT[displayUnit] || Y_MAX_BY_UNIT.year;
+    let yMinDisplayPositive = Math.max(1, displayTicks[0] / 10);
+
+    // Для лог-шкалы ноль невозможен математически, поэтому используем маленький положительный floor,
+    // но визуально показываем ось "от 0" отдельной подписью внизу.
+    this.chart.yMin = flowToWeekly(yMinDisplayPositive, displayUnit);
+    // Небольшой запас сверху, чтобы линии/подписи не прилипали к потолку.
+    this.chart.yMax = flowToWeekly(yMaxDisplay * Y_HEADROOM_FACTOR, displayUnit);
     this.chart.ticksY = displayTicks.map(function (tick) {
       return flowToWeekly(tick, displayUnit);
     });
-
-    if (this.chart.ticksY.length < 2) {
-      this.chart.ticksY = [this.chart.yMin, this.chart.yMax];
-    }
-
-    this.chart.yMin = this.chart.ticksY[0];
-    this.chart.yMax = this.chart.ticksY[this.chart.ticksY.length - 1];
   };
 
   /**
@@ -826,7 +802,6 @@
     let ratio = (this.chart.height - this.chart.paddingBottom - clamped) / plotHeight;
     let lnMin = Math.log(this.chart.yMin);
     let lnMax = Math.log(this.chart.yMax);
-
     return Math.exp(lnMin + ratio * (lnMax - lnMin));
   };
 
@@ -890,6 +865,20 @@
       });
       gAxes.appendChild(label);
     });
+
+    // Визуальная нижняя граница "0" (не участвует в лог-расчетах).
+    let yZero = this.chart.height - this.chart.paddingBottom;
+    let zeroLabel = createSvgEl('text');
+    zeroLabel.textContent = '$0';
+    setAttrs(zeroLabel, {
+      x: this.chart.paddingLeft - 10,
+      y: yZero + 4,
+      fill: COLORS.black,
+      'font-size': 10,
+      'font-weight': 500,
+      'text-anchor': 'end'
+    });
+    gAxes.appendChild(zeroLabel);
 
     for (let year = this.chart.tMin; year <= this.chart.tMax; year += 1) {
       let t = year - this.chart.tMin;
@@ -1033,12 +1022,29 @@
      * Прямоугольная drag-ручка (revenue/fixed/variable).
      */
     function addHandleRect(name, x, y, color) {
+      const visualW = 22;
+      const visualH = 16;
+      const hitPad = 8;
+
+      // Широкая невидимая зона наведения для уверенного захвата мышью.
+      let hit = createSvgEl('rect');
+      setAttrs(hit, {
+        x: x - visualW / 2 - hitPad,
+        y: y - visualH / 2 - hitPad,
+        width: visualW + hitPad * 2,
+        height: visualH + hitPad * 2,
+        fill: 'rgba(0,0,0,0.001)',
+        'data-handle': name,
+        style: 'cursor:ns-resize'
+      });
+      gHandles.appendChild(hit);
+
       let rect = createSvgEl('rect');
       setAttrs(rect, {
-        x: x - 8,
-        y: y - 6,
-        width: 16,
-        height: 12,
+        x: x - visualW / 2,
+        y: y - visualH / 2,
+        width: visualW,
+        height: visualH,
         rx: 2,
         fill: COLORS.white,
         stroke: color,
@@ -1050,10 +1056,10 @@
 
       let centerLine1 = createSvgEl('line');
       setAttrs(centerLine1, {
-        x1: x - 4,
-        y1: y - 2,
-        x2: x + 4,
-        y2: y - 2,
+        x1: x - 5,
+        y1: y - 2.5,
+        x2: x + 5,
+        y2: y - 2.5,
         stroke: color,
         'stroke-width': 1.5,
         'data-handle': name,
@@ -1063,10 +1069,10 @@
 
       let centerLine2 = createSvgEl('line');
       setAttrs(centerLine2, {
-        x1: x - 4,
-        y1: y + 2,
-        x2: x + 4,
-        y2: y + 2,
+        x1: x - 5,
+        y1: y + 2.5,
+        x2: x + 5,
+        y2: y + 2.5,
         stroke: color,
         'stroke-width': 1.5,
         'data-handle': name,
@@ -1079,11 +1085,26 @@
      * Круглая drag-ручка для изменения growth.
      */
     function addHandleCircle(name, x, y, color) {
+      const visualR = 8;
+      const hitR = 14;
+
+      // Невидимый увеличенный радиус для более удобного drag.
+      let hit = createSvgEl('circle');
+      setAttrs(hit, {
+        cx: x,
+        cy: y,
+        r: hitR,
+        fill: 'rgba(0,0,0,0.001)',
+        'data-handle': name,
+        style: 'cursor:move'
+      });
+      gHandles.appendChild(hit);
+
       let circle = createSvgEl('circle');
       setAttrs(circle, {
         cx: x,
         cy: y,
-        r: 6,
+        r: visualR,
         fill: COLORS.white,
         stroke: color,
         'stroke-width': 3,
@@ -1137,7 +1158,7 @@
    * Автоинициализация по data-атрибуту/ID контейнера.
    */
   function autoInit() {
-    let nodes = document.querySelectorAll('[data-ims-growth-graph], #growth-calc');
+    let nodes = document.querySelectorAll('#ims-growth-calc');
     if (!nodes.length) {
       return [];
     }
